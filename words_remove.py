@@ -12,10 +12,11 @@ def check_words_in_list(word_list, text_list):
     result = {}
     
     for item in word_list:
+        item = item.strip()
         if ' ' in item and item != ' ':
-            phrases.append(item.lower())
+            phrases.append(item.rstrip().lower())
         else:
-            single_words.add(item.lower())
+            single_words.add(item.rstrip().lower())
     phrases.sort(key=len, reverse=True)
     #print(phrases)
 
@@ -23,7 +24,7 @@ def check_words_in_list(word_list, text_list):
     for n, sentence in enumerate(text_list):
         #print(f"{n+1}. {sentence.rstrip()}")
         result[n] = []
-        sentence = sentence.rstrip().lower()
+        sentence = sentence.replace("“", "\"").replace("”", "\"").replace("’", "\'").rstrip().lower()
         # フレーズの検証
         for phrase in phrases:
             if phrase in sentence:
@@ -50,7 +51,7 @@ def load_symbols(pklfile):
     symbol_list = []
     with open(pklfile, 'rb') as f:
         category = pl.load(f)
-    symbol_list += [item for sublist in category.values() for item in sublist if item not in symbol_list]
+    symbol_list += [item.strip() for sublist in category.values() for item in sublist if item.strip() not in symbol_list]
     return symbol_list
 
 def Gpt(symbol_list, Input, freq=None):
@@ -220,7 +221,7 @@ def Gpt(symbol_list, Input, freq=None):
               model="gpt-4o",
               messages=message_normal,
               temperature=1,
-              max_tokens=256,
+              max_tokens=1024,
               top_p=1,
               frequency_penalty=0,
               presence_penalty=0,
@@ -230,11 +231,10 @@ def Gpt(symbol_list, Input, freq=None):
         )
     return response.choices[0].message
 
-def replace_words(symbol_list, Output):
+def replace_words(symbol_list, Output, folder):
     now = datetime.datetime.now()
-    log_file = "experimet\communikate20\\" + 'remove_'+ now.strftime('%m%d%Y_%H%M%S') + '.txt'
-
-    dataset = []
+    log_file = "log/" + folder.split("/")[-1] + '/remove_'+ now.strftime('%m%d%Y_%H%M%S') + '.txt'
+    okay = []
     include = []
     remove = []
     freq = []
@@ -242,14 +242,18 @@ def replace_words(symbol_list, Output):
     texts = [line[3:] for line in Output.split("\n") if line != ""]
     result = check_words_in_list(symbol_list, texts)
     with open(log_file, 'w', encoding="utf-8") as f:
+        f.write(Output)
+        f.flush()
+        os.fsync(f.fileno())
         for n in range(4):
-            pdb.set_trace()
-            f.write("-----------------------------------------------------------------------\n")
+            #pdb.set_trace()
+            f.write("\n-----------------------------------------------------------------------\n")
             f.write(f"try {n}\n")
             Input = ""
             for sample_num, sample in enumerate(texts):
+                #pdb.set_trace()
                 if result[sample_num] == []:
-                    dataset.append(sample)
+                    okay.append(sample)
                     f.write(f'{sample_num} is okay\n')
                 elif "It's impossible to replace [" in sample:
                     remove.append(sample)
@@ -258,15 +262,18 @@ def replace_words(symbol_list, Output):
                     Input += f'{sample_num}. {sample.rstrip()}\n   {result[sample_num]} are not on the list \n'
             if Input == "":
                 print("all words are on the list")
+                texts = []
                 break
             f.write(f"Next Input:\n{Input}")
             f.write(f"Don't use: {freq}\n")
             f.flush()
             os.fsync(f.fileno())
+            """
             ahead = input("Do you want to use GPT? (Y/N) >>>")
             if ahead != "Y":
                 print("stop the fixing")
                 break
+            """
             #call GPT model
             Output = Gpt(symbol_list, Input, freq)
             print(Output.content)
@@ -277,14 +284,18 @@ def replace_words(symbol_list, Output):
             texts = [line[3:] for line in Output.content.split("\n") if re.match(pattern, line)]
             result = check_words_in_list(symbol_list, texts)
             freq += [item for sublist in result.values() for item in sublist if item not in freq]
+    dataset = delete_words(texts, okay.copy(), remove, result, freq)
+    return okay + texts, dataset
 
+def delete_words(texts, dataset, remove, result, freq):
     #remove the sentences which contain words can't be replaced
     texts += remove
     for sample_num, sample in enumerate(texts):
         if result[sample_num] == []:
-            dataset.append(sample)
+            dataset += [sample]
             print(f'{sample_num} is okay')
         else:
+            after_remove = ""
             pattern = re.compile(r'(?<!\.\.\.)(?<![A-Z][a-z]\.)(?<=\.|\!|\?)\s')
             sentences = pattern.split(sample.rstrip())
             # 文章を分割
@@ -298,16 +309,18 @@ def replace_words(symbol_list, Output):
                         break
                 if flg:
                     continue
-                dataset.append(sentence)
+                after_remove = after_remove + sentence + " "
+            dataset.append(after_remove.rstrip())
     return dataset
 
-def remove_by_GPT(pklfile, Output):
-    symbol_list = load_symbols(pklfile)
-    dataset = replace_words(symbol_list, Output)
-    return dataset
+def remove_by_GPT(folder, Output):
+    symbol_list = load_symbols(folder + "/symbol_list.pkl")
+    gpt_generate, dataset = replace_words(symbol_list, Output, folder)
+    return gpt_generate, dataset
 
 if __name__ == "__main__":
-    pkl_file = ("symbol_list\picomdata\comunicate_20\symbol_list.pkl")
-    Output = "9. At home, I feel sick and have a headache. I tell Mum, and she gives me medicine. I rest in bed with my pillow and blanket. Mum stays with me, and I feel better.\n10. On the weekend, my family and I go to the countryside. We see a lot of animals like cows, sheep, and horses. We eat sandwiches for lunch. I take photos with my camera. It’s a fun day.\n11. Yesterday at school, we did art in class with Educational staff help. But my friend spills paint on the table, and we all laugh because it looks funny. We clean it up together with a dish cloth and some water.\n12. Today at home with Dad, we need to do some gardening. It is sunny outside as we plant flowers in the garden. Dad helps me use the tools like rake and shovel.\n13. My brother plays football outside place while I watch him from the window; then he falls, saying “ouch!” He comes inside crying; I give him water to drink to feel better."
-    dataset = remove_by_GPT(pkl_file, Output)
+    folder = "Input/quicksay_20"
+    Output = "1. Yesterday, sister and I played basketball in the gymnasium. She kept scoring points, and I couldn't catch up. I felt really bad and frustrated. I told her, \"I need more practice to get better.\" She smiled and said, \"We can practice together.\" I felt hopeful and ready to improve.\n2. This morning, brother and I ate breakfast at kitchen table. The food was delicious, but something strange happened. I found toy inside my cereal box! I felt surprised and called out, \"Mom, look at this!\" Mom laughed and said it must have been a mistake from the store.\n3. Sunday afternoon, I'm outside with friends playing soccer by the park. Suddenly, it started raining heavily. We were all wet and dirty; everyone was annoyed. One friend suggested going inside his house instead. We ended up playing video games and had fun indoors.\n4. Last week in art class, teacher asked us to draw pictures of our favorite things. I drew a picture of my dog because he makes me feel joyful every day. When showing my drawing to classmates, they all liked it very much! I felt so proud of myself for doing good job.\n5. During movie night with family in living room last night, we watched funny film together on TV screen. It made us all laugh so hard! After movie ended, dad made hot chocolate for everyone while mom brought cookies from kitchen cupboard. The evening was perfect; everyone went to bed happy."
+    fix_data, dataset = remove_by_GPT(folder, Output)
+    print(fix_data)
     print(dataset)
