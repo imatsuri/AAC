@@ -112,7 +112,7 @@ def generate_sentences(symbol_list, folder, past_dataset=None):
         past_output = fix_output.copy()
     with open("result.txt","a") as f:
         f.write("\n".join(final_data))
-    for n in range(5):
+    for n in range(9):
         print(f'{n+1} times generation')
         """
         f.write('\n'.join(f"{i+5}. {text}" for i, text in enumerate(past_output)))
@@ -132,6 +132,7 @@ def generate_sentences(symbol_list, folder, past_dataset=None):
         dataset += final_data
         with open("result.txt","a") as f:
             f.write("\n".join(final_data))
+            f.write("\n")
     print(dataset)
     return dataset
 
@@ -149,9 +150,18 @@ def generate_sentences(symbol_list, prompt):
     if not_list != []:
 """
 
+def from_lasttime(past_output):
+    with open(past_output, "r", encoding="utf-8") as f:
+        past = f.readlines()
+        past_str = ''.join(f"{i+5}. {text}" for i, text in enumerate(past))
+    return past_str
+
 if __name__ == "__main__":
-    folder = "Input/communikate20"
+    past_output = from_lasttime("result\quick20.txt")
+    #past_output = None
+    folder = "Input/quicksay_20"
     symbol_list = interleave_dict_values(folder+"/symbol_list.pkl")
-    dataset = generate_sentences(symbol_list, folder)
-    with open('result\communicate20_2.txt', 'w', encoding='utf-8') as f:
-        f.write("\n".join(dataset.strip()))
+    dataset = generate_sentences(symbol_list, folder, past_output)
+    dataset = [sample.strip() for sample in dataset]
+    with open('result\quicksay20_2.txt', 'w', encoding='utf-8') as f:
+        f.write("\n".join(dataset))

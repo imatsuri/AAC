@@ -236,10 +236,10 @@ def replace_words(symbol_list, Output, folder):
     log_file = "log/" + folder.split("/")[-1] + '/remove_'+ now.strftime('%m%d%Y_%H%M%S') + '.txt'
     okay = []
     include = []
-    remove = []
     freq = []
     #replace words by GPT
-    texts = [line[3:] for line in Output.split("\n") if line != ""]
+    pattern = r'^\d+\.\s'
+    texts = [line[3:] for line in Output.split("\n") if re.match(pattern, line) and "It's impossible to replace [" not in line]
     result = check_words_in_list(symbol_list, texts)
     with open(log_file, 'w', encoding="utf-8") as f:
         f.write(Output)
@@ -256,7 +256,7 @@ def replace_words(symbol_list, Output, folder):
                     okay.append(sample)
                     f.write(f'{sample_num} is okay\n')
                 elif "It's impossible to replace [" in sample:
-                    remove.append(sample)
+                    continue
                 else:
                     include.append(sample)
                     Input += f'{sample_num}. {sample.rstrip()}\n   {result[sample_num]} are not on the list \n'
@@ -280,16 +280,14 @@ def replace_words(symbol_list, Output, folder):
             f.write(f'output: \n{Output.content}\n')
             f.flush()
             os.fsync(f.fileno())
-            pattern = r'^\d+\.\s'
-            texts = [line[3:] for line in Output.content.split("\n") if re.match(pattern, line)]
+            texts = [line[3:] for line in Output.content.split("\n") if re.match(pattern, line) and "It's impossible to replace [" not in line]
             result = check_words_in_list(symbol_list, texts)
             freq += [item for sublist in result.values() for item in sublist if item not in freq]
-    dataset = delete_words(texts, okay.copy(), remove, result, freq)
+    dataset = delete_words(texts, okay.copy(), result, freq)
     return okay + texts, dataset
 
-def delete_words(texts, dataset, remove, result, freq):
+def delete_words(texts, dataset, result, freq):
     #remove the sentences which contain words can't be replaced
-    texts += remove
     for sample_num, sample in enumerate(texts):
         if result[sample_num] == []:
             dataset += [sample]
