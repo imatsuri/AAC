@@ -47,7 +47,7 @@ def calculate_ease(texts):
 
 #input from text file and save the result of complexity to pkl file
 def from_txt(filename, outfile):
-    with open(filename,"r") as f:
+    with open(filename,"r", encoding="utf-8") as f:
         texts = f.readlines()
     #result = calculate(texts)
     result = calculate_grade(texts)
@@ -73,7 +73,7 @@ def draw_graph(pkl, title):
 
 def plot_fourlines(pkls, title="Combined Graph", save_path=None):
     """pklsを受け取って1つの座標に4つの線を表示する関数"""
-    color = ["b", "g", "r", "m"]
+    color = ["b", "g", "r", "m", "orange"]
     labels = ["request_original", "request_separated", "story_original", "story_separated"]
     plt.figure(figsize=(10, 6))
     
@@ -108,7 +108,7 @@ def from_pickle(filenames):
 
     pkls = []
     for filename in filelist:
-        small_title = filename.split("\\")[-1].split(".")[0]
+        small_title = filename.split("\\")[-2]
         pkl = pd.read_pickle(filename)
         pkls.append([small_title, pkl])
     #pdb.set_trace()
@@ -117,9 +117,9 @@ def from_pickle(filenames):
     #four_graph(pkls, big_title, big_title + "_4graph.png")
     plot_fourlines(pkls, big_title, save_path = big_title + "_4line.png")
 
-"""
-from_txt("result\quick20.txt", "Input\quicksay_20\complexity_2.pkl")
-pkl = pd.read_pickle('Input\quicksay_20\complexity_2.pkl')
+
+from_txt("result\core112\\100samples.txt", "Input\core112\complexity.pkl")
+pkl = pd.read_pickle('Input\core112\complexity.pkl')
 draw_graph(pkl, "reading ease of storytelling")
-"""
-from_pickle(['Input\communikate20\complexity_2.pkl', 'Input\quicksay_20\complexity_2.pkl'])
+
+from_pickle(['Input\communikate20\complexity.pkl', 'Input\quicksay_20\complexity.pkl', 'Input\ck20\complexity.pkl', 'Input\core60\complexity.pkl', 'Input\core112\complexity.pkl'])
